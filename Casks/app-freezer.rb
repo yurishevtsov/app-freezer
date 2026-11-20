@@ -1,7 +1,7 @@
 cask "app-freezer" do
   # version and sha256 are updated by .github/workflows/release.yml on each release.
-  version "1.1.0"
-  sha256 "5af16520cdd378b2493158994034e07de62c33247aba6bead718ae35fd756b38"
+  version "1.2.0"
+  sha256 "e89b13b9a4f17970333e5485817f80374e6d5768f54143da5102e5fb66d69e46"
 
   url "https://github.com/yurishevtsov/app-freezer/releases/download/v#{version}/AppFreezer.zip"
   name "AppFreezer"
