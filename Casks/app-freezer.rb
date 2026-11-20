@@ -8,15 +8,14 @@ cask "app-freezer" do
   desc "Pause and resume running apps to simulate a frozen app"
   homepage "https://github.com/yurishevtsov/app-freezer"
 
-  depends_on macos: ">= :sonoma"
+  depends_on macos: :sonoma
 
   app "AppFreezer.app"
 
   # The app is ad-hoc signed, not notarized. Clear the quarantine flag so
   # Gatekeeper lets it open.
-  postflight do
-    system_command "/usr/bin/xattr",
-                   args: ["-dr", "com.apple.quarantine", "#{appdir}/AppFreezer.app"]
+  postflight_steps do
+    run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{appdir}}/AppFreezer.app"]
   end
 
   # Quitting AppFreezer resumes every app it froze.
