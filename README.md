@@ -8,7 +8,8 @@ process that runs from inside its `.app` bundle. Resuming sends `SIGCONT`.
 It is the same as `killall -STOP "App Name"` / `killall -CONT "App Name"`,
 plus the helpers (Chrome, Electron apps, and so on).
 
-- Window and menu bar item (snowflake) to freeze/resume any app
+- Two-column grid of running apps: click a card to freeze or resume it
+- Menu bar item (snowflake) with the same list
 - Shows apps frozen from Terminal too (reads the real process state)
 - Quitting AppFreezer resumes every app it froze
 - System, light, or dark appearance (moon/sun icon in the window header)

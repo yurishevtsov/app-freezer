@@ -74,6 +74,7 @@ final class Model: ObservableObject {
     @Published var apps: [AppRow] = []
     @Published var error: String?
     @Published var search = ""
+    @Published var hovered: pid_t?
     @Published var appearance = Appearance(rawValue: UserDefaults.standard.string(forKey: "appearance") ?? "") ?? .system {
         didSet {
             UserDefaults.standard.set(appearance.rawValue, forKey: "appearance")
@@ -123,6 +124,10 @@ final class Model: ObservableObject {
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
         let alive = Set(apps.flatMap(\.pids))
         pausedByUs.formIntersection(alive)
+    }
+
+    func setHover(_ id: pid_t, _ inside: Bool) {
+        if inside { hovered = id } else if hovered == id { hovered = nil }
     }
 
     func toggle(_ app: AppRow) {
@@ -180,9 +185,7 @@ struct ContentView: View {
             if filtered.isEmpty {
                 ContentUnavailableView.search(text: search)
             } else {
-                List(filtered) { AppRowView(app: $0) }
-                    .listStyle(.inset)
-                    .scrollContentBackground(.hidden)
+                CardsView(apps: filtered)
             }
             if let error = model.error {
                 Divider()
@@ -195,7 +198,7 @@ struct ContentView: View {
             }
         }
         .background(.background)
-        .frame(minWidth: 440, minHeight: 480)
+        .frame(minWidth: 560, minHeight: 480)
     }
 
     private var header: some View {
@@ -255,50 +258,102 @@ struct ContentView: View {
     }
 }
 
-struct AppRowView: View {
+// MARK: - Shared pieces
+
+func processCount(_ app: AppRow) -> String {
+    app.pids.count == 1 ? "1 process" : "\(app.pids.count) processes"
+}
+
+struct AppIconView: View {
     let app: AppRow
+    let size: CGFloat
 
     var body: some View {
-        HStack(spacing: 10) {
-            ZStack(alignment: .bottomTrailing) {
-                if let icon = app.icon {
-                    Image(nsImage: icon)
-                        .resizable()
-                        .frame(width: 24, height: 24)
-                        .saturation(app.paused ? 0 : 1)
-                        .opacity(app.paused ? 0.55 : 1)
-                }
-                if app.paused {
-                    Image(systemName: "snowflake.circle.fill")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.white, .cyan)
-                        .offset(x: 3, y: 3)
-                }
+        ZStack(alignment: .bottomTrailing) {
+            if let icon = app.icon {
+                Image(nsImage: icon)
+                    .resizable()
+                    .frame(width: size, height: size)
+                    .saturation(app.paused ? 0 : 1)
+                    .opacity(app.paused ? 0.55 : 1)
             }
-            VStack(alignment: .leading, spacing: 0) {
-                Text(app.name).font(.body.weight(.medium))
-                Text(subtitle)
-                    .font(.caption)
-                    .foregroundStyle(app.paused ? Color.cyan : Color.secondary)
+            if app.paused {
+                Image(systemName: "snowflake.circle.fill")
+                    .font(.system(size: size * 0.45))
+                    .foregroundStyle(.white, .cyan)
+                    .offset(x: 3, y: 3)
             }
-            Spacer()
-            Button {
-                Model.shared.toggle(app)
-            } label: {
-                Label(app.paused ? "Resume" : "Freeze",
-                      systemImage: app.paused ? "play.fill" : "pause.fill")
-                    .frame(width: 70)
-            }
-            .buttonStyle(.borderedProminent)
-            .controlSize(.small)
-            .tint(app.paused ? .green : .blue)
         }
-        .padding(.vertical, 1)
+    }
+}
+
+// MARK: - App grid: two columns of cards; clicking a card toggles it
+
+struct CardsView: View {
+    let apps: [AppRow]
+    @ObservedObject var model = Model.shared
+
+    var body: some View {
+        ScrollView {
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 8), GridItem(.flexible(), spacing: 8)],
+                      spacing: 8) {
+                ForEach(apps) { AppCard(app: $0, hovered: model.hovered == $0.id) }
+            }
+            .padding(12)
+        }
+    }
+}
+
+struct AppCard: View {
+    let app: AppRow
+    let hovered: Bool
+
+    var body: some View {
+        Button {
+            Model.shared.toggle(app)
+        } label: {
+            HStack(spacing: 10) {
+                AppIconView(app: app, size: 28)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(app.name).font(.callout.weight(.medium)).lineLimit(1)
+                    Text(app.paused ? "Frozen · \(processCount(app))" : processCount(app))
+                        .font(.caption)
+                        .foregroundStyle(app.paused ? Color.cyan : Color.secondary)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 4)
+                glyph.font(.system(size: 20)).frame(width: 24)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(fill, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(stroke, lineWidth: 1))
+            .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .onHover { Model.shared.setHover(app.id, $0) }
+        .help(app.paused ? "Click to resume \(app.name)" : "Click to freeze \(app.name)")
+        .animation(.easeOut(duration: 0.12), value: hovered)
     }
 
-    private var subtitle: String {
-        let count = app.pids.count == 1 ? "1 process" : "\(app.pids.count) processes"
-        return app.paused ? "Frozen · \(count)" : count
+    @ViewBuilder private var glyph: some View {
+        if hovered {
+            Image(systemName: app.paused ? "play.circle.fill" : "pause.circle.fill")
+                .foregroundStyle(.white, app.paused ? Color.green : Color.accentColor)
+        } else if app.paused {
+            Image(systemName: "snowflake").foregroundStyle(.cyan)
+        } else {
+            Color.clear
+        }
+    }
+
+    private var fill: Color {
+        app.paused ? .cyan.opacity(hovered ? 0.22 : 0.13) : .primary.opacity(hovered ? 0.09 : 0.04)
+    }
+
+    private var stroke: Color {
+        if app.paused { return .cyan.opacity(0.5) }
+        return hovered ? Color.accentColor.opacity(0.6) : .primary.opacity(0.06)
     }
 }
 
@@ -348,7 +403,7 @@ struct AppFreezerApp: App {
 
     var body: some Scene {
         Window("AppFreezer", id: "main") { ContentView() }
-            .defaultSize(width: 460, height: 640)
+            .defaultSize(width: 620, height: 620)
             .windowResizability(.contentMinSize)
         MenuBarExtra {
             MenuBarContent()
