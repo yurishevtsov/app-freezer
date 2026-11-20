@@ -19,8 +19,11 @@ Requires macOS 14 (Sonoma) or later.
 
 ```bash
 brew tap yurishevtsov/app-freezer https://github.com/yurishevtsov/app-freezer
-brew install --cask app-freezer
+brew install --cask yurishevtsov/app-freezer/app-freezer
 ```
+
+Use the full `yurishevtsov/app-freezer/app-freezer` name: Homebrew 7 trusts a
+third-party cask only when you install it by its full name (or run `brew trust`).
 
 The app is ad-hoc signed, not notarized by Apple. The cask removes the
 quarantine flag after install so macOS lets it open.
